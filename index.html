@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>日圓轉新台幣記帳工具</title>
+    <!-- 加入 Supabase 客戶端 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        /* 保留原有的所有 CSS 樣式 */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
@@ -19,7 +22,7 @@
         }
 
         .card {
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             padding: 24px;
@@ -205,6 +208,7 @@
                             <th>消費類別</th>
                             <th>日圓金額</th>
                             <th>新台幣金額</th>
+                            <th>記錄時間</th>
                             <th>操作</th>
                         </tr>
                     </thead>
@@ -223,6 +227,12 @@
     </div>
 
     <script>
+        // 初始化 Supabase 客戶端
+        const supabaseClient = supabase.createClient(
+            'https://mltxlfuiiuzcyldnmxck.supabase.co',  // 替換成您的 Project URL
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sdHhsZnVpaXV6Y3lsZG5teGNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYzNTkyNTMsImV4cCI6MjA1MTkzNTI1M30.o9mqla92ZPakvxpCS3yXqdIRgMniTrN9EVf1SRf4zW4'      // 替換成您的 anon/public key
+        );
+
         const exchangeRate = 0.2143;
         const jpyInput = document.getElementById('jpyInput');
         const categorySelect = document.getElementById('categorySelect');
@@ -234,14 +244,16 @@
         const previewJPY = document.getElementById('previewJPY');
         const previewTWD = document.getElementById('previewTWD');
 
-        // 格式化數字（四捨五入到小數點後2位）
+        let records = [];
+
+        // 格式化數字（四捨五入到整數）
         function formatNumber(number) {
-    const roundedNumber = Math.round(number); // 直接四捨五入到整數
-    return new Intl.NumberFormat('zh-TW', {
-        minimumFractionDigits: 0, // 改為 0，不顯示小數位
-        maximumFractionDigits: 0  // 改為 0，不顯示小數位
-    }).format(roundedNumber);
-         }
+            const roundedNumber = Math.round(number);
+            return new Intl.NumberFormat('zh-TW', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(roundedNumber);
+        }
 
         // 更新即時預覽
         function updatePreview(value) {
@@ -251,37 +263,36 @@
             }
 
             const jpyAmount = parseFloat(value);
-            const twdAmount = Math.round(jpyAmount * exchangeRate * 100) / 100;
+            const twdAmount = Math.round(jpyAmount * exchangeRate);
 
             previewJPY.textContent = formatNumber(jpyAmount);
             previewTWD.textContent = formatNumber(twdAmount);
             previewAmount.style.display = 'block';
         }
 
-        // 監聽輸入變化
-        jpyInput.addEventListener('input', (e) => {
-            const value = e.target.value;
-            // 只允許輸入數字和小數點
-            if (!(value === '' || /^\d*\.?\d*$/.test(value))) {
-                e.target.value = value.replace(/[^\d.]/g, '');
+        // 從 Supabase 讀取記錄
+        async function fetchRecords() {
+            const { data, error } = await supabaseClient
+                .from('expenses')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) {
+                console.error('讀取失敗:', error);
+                return;
             }
-            updatePreview(e.target.value);
-        });
-
-        // 從 localStorage 讀取記錄
-        let records = JSON.parse(localStorage.getItem('currencyRecords') || '[]');
+            
+            records = data;
+            renderRecords();
+        }
 
         // 更新總計
         function updateTotals() {
             const totals = records.reduce((acc, record) => {
-                acc.jpy += record.jpy;
-                acc.twd += record.twd;
+                acc.jpy += record.jpy_amount;
+                acc.twd += record.twd_amount;
                 return acc;
             }, { jpy: 0, twd: 0 });
-
-            // 四捨五入總計金額
-            totals.jpy = Math.round(totals.jpy * 100) / 100;
-            totals.twd = Math.round(totals.twd * 100) / 100;
 
             totalJPY.textContent = formatNumber(totals.jpy);
             totalTWD.textContent = formatNumber(totals.twd);
@@ -289,13 +300,14 @@
 
         // 渲染記錄表格
         function renderRecords() {
-            recordsTable.innerHTML = records.map((record, index) => `
+            recordsTable.innerHTML = records.map(record => `
                 <tr>
                     <td class="category-cell">${record.category}</td>
-                    <td>¥ ${formatNumber(record.jpy)}</td>
-                    <td>NT$ ${formatNumber(record.twd)}</td>
+                    <td>¥ ${formatNumber(record.jpy_amount)}</td>
+                    <td>NT$ ${formatNumber(record.twd_amount)}</td>
+                    <td>${new Date(record.created_at).toLocaleString()}</td>
                     <td>
-                        <button class="delete-btn" onclick="deleteRecord(${index})">
+                        <button class="delete-btn" onclick="deleteRecord('${record.id}')">
                             刪除
                         </button>
                     </td>
@@ -303,32 +315,74 @@
             `).join('');
             
             updateTotals();
-            localStorage.setItem('currencyRecords', JSON.stringify(records));
         }
 
         // 刪除記錄
-        function deleteRecord(index) {
-            records.splice(index, 1);
-            renderRecords();
+        async function deleteRecord(id) {
+            const { error } = await supabaseClient
+                .from('expenses')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('刪除失敗:', error);
+                return;
+            }
+            
+            await fetchRecords();
         }
 
         // 新增記錄
-        function addRecord() {
+        async function addRecord() {
             const jpyAmount = parseFloat(jpyInput.value);
             if (!isNaN(jpyAmount) && jpyAmount > 0) {
-                const roundedJPY = Math.round(jpyAmount * 100) / 100;
-                const twdAmount = Math.round(roundedJPY * exchangeRate * 100) / 100;
+                const roundedJPY = Math.round(jpyAmount);
+                const twdAmount = Math.round(roundedJPY * exchangeRate);
                 
-                records.push({
-                    category: categorySelect.value,
-                    jpy: roundedJPY,
-                    twd: twdAmount
-                });
+                const { error } = await supabaseClient
+                    .from('expenses')
+                    .insert([{
+                        category: categorySelect.value,
+                        jpy_amount: roundedJPY,
+                        twd_amount: twdAmount
+                    }]);
+
+                if (error) {
+                    console.error('新增失敗:', error);
+                    return;
+                }
+
                 jpyInput.value = '';
                 previewAmount.style.display = 'none';
-                renderRecords();
+                await fetchRecords();
             }
         }
+
+        // 設置即時更新
+        function setupRealtimeSubscription() {
+            supabaseClient
+                .channel('expenses_changes')
+                .on('postgres_changes', 
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'expenses'
+                    },
+                    () => {
+                        fetchRecords();
+                    }
+                )
+                .subscribe();
+        }
+
+        // 監聽輸入變化
+        jpyInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (!(value === '' || /^\d*\.?\d*$/.test(value))) {
+                e.target.value = value.replace(/[^\d.]/g, '');
+            }
+            updatePreview(e.target.value);
+        });
 
         // 綁定新增記錄事件
         addRecordBtn.addEventListener('click', addRecord);
@@ -340,8 +394,9 @@
             }
         });
 
-        // 初始渲染
-        renderRecords();
+        // 初始化
+        setupRealtimeSubscription();
+        fetchRecords();
     </script>
 </body>
 </html>
