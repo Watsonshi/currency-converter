@@ -1,0 +1,33 @@
+name: Deploy to Firebase Hosting on PR
+
+on:
+  push:
+    branches:
+      - main  # 確保對應正確分支名稱
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 16
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Build the project
+
+    - name: Deploy to Firebase Hosting
+      uses: FirebaseExtended/action-hosting-deploy@v0
+      with:
+        repoToken: '${{ secrets.GITHUB_TOKEN }}'
+        firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+        channelId: live  # 或設為 preview，視需求而定
+        projectId: coding-pratice
