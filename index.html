@@ -236,12 +236,12 @@
 
         // 格式化數字（四捨五入到小數點後2位）
         function formatNumber(number) {
-            const roundedNumber = Math.round(number * 100) / 100;
-            return new Intl.NumberFormat('zh-TW', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-            }).format(roundedNumber);
-        }
+    const roundedNumber = Math.round(number); // 直接四捨五入到整數
+    return new Intl.NumberFormat('zh-TW', {
+        minimumFractionDigits: 0, // 改為 0，不顯示小數位
+        maximumFractionDigits: 0  // 改為 0，不顯示小數位
+    }).format(roundedNumber);
+         }
 
         // 更新即時預覽
         function updatePreview(value) {
