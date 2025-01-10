@@ -1,0 +1,22 @@
+name: Deploy to Firebase Hosting
+
+on:
+  # 當有 push 或 pull_request 到 main 時執行工作流程
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 檢出你的儲存庫代碼
+      - uses: actions/checkout@v2
+
+      # 部署到 Firebase Hosting
+      - name: Firebase Deploy
+        run: |
+          sudo npm install -g firebase-tools
+          firebase deploy --token ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CODING_PRATICE }}
