@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日圓轉新台幣記帳工具</title>
+    <!-- 加入 Supabase 客戶端 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        /* 保留原有的所有 CSS 樣式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            background-image: url('images/currency-bg.jpeg');
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .title {
+            text-align: center;
+            color: #333;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 0 24px 0;
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-wrapper {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            align-items: start;
+        }
+
+        .label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .input, .select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .input:focus, .select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .button {
+            padding: 8px 16px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+        }
+
+        .button:hover {
+            background-color: #2563eb;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .delete-btn {
+            padding: 4px 8px;
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .delete-btn:hover {
+            background-color: #dc2626;
+        }
+
+        .summary {
+            margin-top: 20px;
+            padding: 16px;
+            background-color: #f8fafc;
+            border-radius: 6px;
+        }
+
+        .amount {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-top: 8px;
+        }
+
+        .category-cell {
+            color: #4b5563;
+            font-weight: 500;
+        }
+
+        .preview-amount {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background-color: #f3f4f6;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #4b5563;
+        }
+
+        .preview-amount strong {
+            color: #2563eb;
+            font-size: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .card {
+                padding: 16px;
+            }
+
+            .title {
+                font-size: 20px;
+                margin-bottom: 16px;
+            }
+
+            .input-wrapper {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1 class="title">日圓轉新台幣記帳工具</h1>
+            
+            <div class="input-group">
+                <label class="label">請輸入消費資訊：</label>
+                <div class="input-wrapper">
+                    <select id="categorySelect" class="select">
+                        <option value="購物">購物</option>
+                        <option value="餐飲">餐飲</option>
+                        <option value="交通">交通</option>
+                        <option value="門票">門票</option>
+                        <option value="住宿">住宿</option>
+                        <option value="伴手禮">伴手禮</option>
+                    </select>
+                    <input 
+                        type="text" 
+                        id="jpyInput" 
+                        class="input" 
+                        placeholder="請輸入日圓金額"
+                    >
+                    <button id="addRecord" class="button">新增記錄</button>
+                </div>
+                <div id="previewAmount" class="preview-amount" style="display: none;">
+                    轉換預覽：¥ <strong id="previewJPY">0</strong> = NT$ <strong id="previewTWD">0</strong>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table id="recordsTable">
+                    <thead>
+                        <tr>
+                            <th>消費類別</th>
+                            <th>日圓金額</th>
+                            <th>新台幣金額</th>
+                            <th>記錄時間</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div class="summary">
+                <div>總計金額：</div>
+                <div class="amount">
+                    日圓：¥ <span id="totalJPY">0</span><br>
+                    新台幣：NT$ <span id="totalTWD">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase 配置
+const firebaseConfig = {
+    apiKey: "AIzaSyDS36wGZec4_UVriqzczzblxmaSxTD1jdE",
+    authDomain: "coding-pratice.firebaseapp.com",
+    databaseURL: "https://coding-pratice-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "coding-pratice",
+    storageBucket: "coding-pratice.firebasestorage.app",
+    messagingSenderId: "78872900161",
+    appId: "1:78872900161:web:e0b82dda3fe9c36b314cc0",
+    measurementId: "G-Z8MLQE88HJ"
+};
+// 初始化 Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// 測試 Firebase 連接
+db.ref('.info/connected').on('value', (snap) => {
+    if (snap.val() === true) {
+        console.log('已連接到 Firebase Database');
+    } else {
+        console.log('未連接到 Firebase Database');
+    }
+});
+        // 初始化 Supabase 客戶端
+        const supabaseClient = supabase.createClient(
+            'https://mltxlfuiiuzcyldnmxck.supabase.co',  // 替換成您的 Project URL
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sdHhsZnVpaXV6Y3lsZG5teGNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYzNTkyNTMsImV4cCI6MjA1MTkzNTI1M30.o9mqla92ZPakvxpCS3yXqdIRgMniTrN9EVf1SRf4zW4'      // 替換成您的 anon/public key
+        );
+
+        const exchangeRate = 0.2143;
+        const jpyInput = document.getElementById('jpyInput');
+        const categorySelect = document.getElementById('categorySelect');
+        const addRecordBtn = document.getElementById('addRecord');
+        const recordsTable = document.getElementById('recordsTable').getElementsByTagName('tbody')[0];
+        const totalJPY = document.getElementById('totalJPY');
+        const totalTWD = document.getElementById('totalTWD');
+        const previewAmount = document.getElementById('previewAmount');
+        const previewJPY = document.getElementById('previewJPY');
+        const previewTWD = document.getElementById('previewTWD');
+
+        let records = [];
+
+        // 格式化數字（四捨五入到整數）
+        function formatNumber(number) {
+            const roundedNumber = Math.round(number);
+            return new Intl.NumberFormat('zh-TW', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(roundedNumber);
+        }
+
+        // 更新即時預覽
+        function updatePreview(value) {
+            if (value === '' || isNaN(value)) {
+                previewAmount.style.display = 'none';
+                return;
+            }
+
+            const jpyAmount = parseFloat(value);
+            const twdAmount = Math.round(jpyAmount * exchangeRate);
+
+            previewJPY.textContent = formatNumber(jpyAmount);
+            previewTWD.textContent = formatNumber(twdAmount);
+            previewAmount.style.display = 'block';
+        }
+
+        // 從 Supabase 讀取記錄
+        async function fetchRecords() {
+            const { data, error } = await supabaseClient
+                .from('expenses')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) {
+                console.error('讀取失敗:', error);
+                return;
+            }
+            
+            records = data;
+            renderRecords();
+        }
+
+        // 更新總計
+        function updateTotals() {
+            const totals = records.reduce((acc, record) => {
+                acc.jpy += record.jpy_amount;
+                acc.twd += record.twd_amount;
+                return acc;
+            }, { jpy: 0, twd: 0 });
+
+            totalJPY.textContent = formatNumber(totals.jpy);
+            totalTWD.textContent = formatNumber(totals.twd);
+        }
+
+        // 渲染記錄表格
+        function renderRecords() {
+            recordsTable.innerHTML = records.map(record => `
+                <tr>
+                    <td class="category-cell">${record.category}</td>
+                    <td>¥ ${formatNumber(record.jpy_amount)}</td>
+                    <td>NT$ ${formatNumber(record.twd_amount)}</td>
+                    <td>${new Date(record.created_at).toLocaleString()}</td>
+                    <td>
+                        <button class="delete-btn" onclick="deleteRecord('${record.id}')">
+                            刪除
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            updateTotals();
+        }
+
+        // 刪除記錄
+        async function deleteRecord(id) {
+            const { error } = await supabaseClient
+                .from('expenses')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('刪除失敗:', error);
+                return;
+            }
+            
+            await fetchRecords();
+        }
+
+        // 新增記錄
+        async function addRecord() {
+            const jpyAmount = parseFloat(jpyInput.value);
+            if (!isNaN(jpyAmount) && jpyAmount > 0) {
+                const roundedJPY = Math.round(jpyAmount);
+                const twdAmount = Math.round(roundedJPY * exchangeRate);
+                
+                const { error } = await supabaseClient
+                    .from('expenses')
+                    .insert([{
+                        category: categorySelect.value,
+                        jpy_amount: roundedJPY,
+                        twd_amount: twdAmount
+                    }]);
+
+                if (error) {
+                    console.error('新增失敗:', error);
+                    return;
+                }
+
+                jpyInput.value = '';
+                previewAmount.style.display = 'none';
+                await fetchRecords();
+            }
+        }
+
+        // 設置即時更新
+        function setupRealtimeSubscription() {
+            supabaseClient
+                .channel('expenses_changes')
+                .on('postgres_changes', 
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'expenses'
+                    },
+                    () => {
+                        fetchRecords();
+                    }
+                )
+                .subscribe();
+        }
+
+        // 監聽輸入變化
+        jpyInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            if (!(value === '' || /^\d*\.?\d*$/.test(value))) {
+                e.target.value = value.replace(/[^\d.]/g, '');
+            }
+            updatePreview(e.target.value);
+        });
+
+        // 綁定新增記錄事件
+        addRecordBtn.addEventListener('click', addRecord);
+
+        // Enter 鍵新增記錄
+        jpyInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addRecord();
+            }
+        });
+
+        // 初始化
+        setupRealtimeSubscription();
+        fetchRecords();
+    </script>
+</body>
+</html>
