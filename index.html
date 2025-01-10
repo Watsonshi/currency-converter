@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日圓轉新台幣匯率計算器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+        }
+
+        .title {
+            text-align: center;
+            color: #333;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 0 24px 0;
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+            padding-right: 40px;
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .currency-symbol {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6b7280;
+        }
+
+        .result-box {
+            background-color: #f9fafb;
+            border-radius: 6px;
+            padding: 16px;
+        }
+
+        .result-label {
+            font-size: 14px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+
+        .result-amount {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 8px;
+        }
+
+        .exchange-rate {
+            font-size: 12px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1 class="title">日圓轉新台幣計算器</h1>
+        
+        <div class="input-group">
+            <label class="label">請輸入日圓金額:</label>
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    id="jpyInput" 
+                    class="input" 
+                    placeholder="請輸入金額"
+                >
+                <span class="currency-symbol">JPY</span>
+            </div>
+        </div>
+
+        <div class="result-box">
+            <div class="result-label">轉換結果:</div>
+            <div id="twdResult" class="result-amount">-</div>
+            <div class="exchange-rate">使用匯率: 1 JPY = 0.2143 TWD</div>
+        </div>
+    </div>
+
+    <script>
+        const exchangeRate = 0.2143;
+        const jpyInput = document.getElementById('jpyInput');
+        const twdResult = document.getElementById('twdResult');
+
+        function formatNumber(number) {
+            return new Intl.NumberFormat('zh-TW', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(number);
+        }
+
+        function updateResult() {
+            const jpyAmount = parseFloat(jpyInput.value);
+            if (!isNaN(jpyAmount)) {
+                const twdAmount = jpyAmount * exchangeRate;
+                twdResult.textContent = `NT$ ${formatNumber(twdAmount)}`;
+            } else {
+                twdResult.textContent = '-';
+            }
+        }
+
+        jpyInput.addEventListener('input', (e) => {
+            // 只允許數字和小數點
+            const value = e.target.value;
+            if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                updateResult();
+            } else {
+                e.target.value = value.replace(/[^\d.]/g, '');
+            }
+        });
+    </script>
+</body>
+</html>
