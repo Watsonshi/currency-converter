@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>日圓轉新台幣記帳工具</title>
     <style>
-        /* 基本樣式保持不變 */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
@@ -38,7 +37,6 @@
             margin-bottom: 24px;
         }
 
-        /* 修改輸入區域的響應式設計 */
         .input-wrapper {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -85,7 +83,6 @@
             background-color: #2563eb;
         }
 
-        /* 響應式表格設計 */
         .table-wrapper {
             overflow-x: auto;
             margin-top: 20px;
@@ -94,7 +91,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 600px; /* 確保表格在小螢幕上可以滾動 */
+            min-width: 600px;
         }
 
         th, td {
@@ -141,7 +138,20 @@
             font-weight: 500;
         }
 
-        /* 小螢幕適配 */
+        .preview-amount {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background-color: #f3f4f6;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #4b5563;
+        }
+
+        .preview-amount strong {
+            color: #2563eb;
+            font-size: 16px;
+        }
+
         @media (max-width: 640px) {
             .card {
                 padding: 16px;
@@ -180,6 +190,9 @@
                     >
                     <button id="addRecord" class="button">新增記錄</button>
                 </div>
+                <div id="previewAmount" class="preview-amount" style="display: none;">
+                    轉換預覽：¥ <strong id="previewJPY">0</strong> = NT$ <strong id="previewTWD">0</strong>
+                </div>
             </div>
 
             <div class="table-wrapper">
@@ -214,6 +227,9 @@
         const recordsTable = document.getElementById('recordsTable').getElementsByTagName('tbody')[0];
         const totalJPY = document.getElementById('totalJPY');
         const totalTWD = document.getElementById('totalTWD');
+        const previewAmount = document.getElementById('previewAmount');
+        const previewJPY = document.getElementById('previewJPY');
+        const previewTWD = document.getElementById('previewTWD');
 
         // 格式化數字（四捨五入到小數點後2位）
         function formatNumber(number) {
@@ -223,6 +239,31 @@
                 maximumFractionDigits: 2
             }).format(roundedNumber);
         }
+
+        // 更新即時預覽
+        function updatePreview(value) {
+            if (value === '' || isNaN(value)) {
+                previewAmount.style.display = 'none';
+                return;
+            }
+
+            const jpyAmount = parseFloat(value);
+            const twdAmount = Math.round(jpyAmount * exchangeRate * 100) / 100;
+
+            previewJPY.textContent = formatNumber(jpyAmount);
+            previewTWD.textContent = formatNumber(twdAmount);
+            previewAmount.style.display = 'block';
+        }
+
+        // 監聽輸入變化
+        jpyInput.addEventListener('input', (e) => {
+            const value = e.target.value;
+            // 只允許輸入數字和小數點
+            if (!(value === '' || /^\d*\.?\d*$/.test(value))) {
+                e.target.value = value.replace(/[^\d.]/g, '');
+            }
+            updatePreview(e.target.value);
+        });
 
         // 從 localStorage 讀取記錄
         let records = JSON.parse(localStorage.getItem('currencyRecords') || '[]');
@@ -259,7 +300,6 @@
             `).join('');
             
             updateTotals();
-            // 儲存到 localStorage
             localStorage.setItem('currencyRecords', JSON.stringify(records));
         }
 
@@ -273,7 +313,6 @@
         function addRecord() {
             const jpyAmount = parseFloat(jpyInput.value);
             if (!isNaN(jpyAmount) && jpyAmount > 0) {
-                // 四捨五入計算
                 const roundedJPY = Math.round(jpyAmount * 100) / 100;
                 const twdAmount = Math.round(roundedJPY * exchangeRate * 100) / 100;
                 
@@ -283,20 +322,13 @@
                     twd: twdAmount
                 });
                 jpyInput.value = '';
+                previewAmount.style.display = 'none';
                 renderRecords();
             }
         }
 
         // 綁定新增記錄事件
         addRecordBtn.addEventListener('click', addRecord);
-
-        // 只允許輸入數字和小數點
-        jpyInput.addEventListener('input', (e) => {
-            const value = e.target.value;
-            if (!(value === '' || /^\d*\.?\d*$/.test(value))) {
-                e.target.value = value.replace(/[^\d.]/g, '');
-            }
-        });
 
         // Enter 鍵新增記錄
         jpyInput.addEventListener('keypress', (e) => {
